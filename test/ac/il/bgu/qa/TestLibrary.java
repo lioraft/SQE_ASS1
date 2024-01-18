@@ -5,11 +5,10 @@ import ac.il.bgu.qa.errors.BookNotBorrowedException;
 import ac.il.bgu.qa.errors.BookNotFoundException;
 import ac.il.bgu.qa.errors.UserNotRegisteredException;
 import ac.il.bgu.qa.services.DatabaseService;
+import ac.il.bgu.qa.services.NotificationService;
 import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
-
-import java.lang.reflect.Method;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestLibrary {
@@ -19,11 +18,11 @@ public class TestLibrary {
     @Mock
     private ReviewService reviewService;
     @Mock
-    Library libraryMock;
-    @Mock
     Book book;
     @Mock
     User user;
+    @Mock
+    NotificationService notificationService;
     private Library library;
 
     @BeforeAll
@@ -43,6 +42,7 @@ public class TestLibrary {
         // initialize user mock calls for valid user
         Mockito.when(user.getName()).thenReturn("Mocked name");
         Mockito.when(user.getId()).thenReturn("123456789123");
+        Mockito.when(user.getNotificationService()).thenReturn(notificationService);
     }
 
     @Test
@@ -97,6 +97,50 @@ public class TestLibrary {
         Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Book already exists.");
     }
+
+    // tests for registerUser method
+    @Test
+    void GivenUserIsNull_WhenRegisterUser_ThenInvalidUserException() {
+        // test that an exception is thrown when trying to register null user
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(null), "Invalid user.") ;
+    }
+
+    @Test
+    void GivenIdIsNull_WhenRegisterUser_ThenInvalidIdException() {
+        // test that an exception is thrown when trying to register null id user
+        Mockito.when(user.getId()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user Id.");
+    }
+
+    @Test
+    void GivenIdIsNot12Digits_WhenRegisterUser_ThenInvalidIdxception() {
+        // test that an exception is thrown when user with id less than 12 digits tries to register
+        Mockito.when(user.getId()).thenReturn("123456789");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user Id.");
+    }
+
+    @Test
+    void GivenNotificationServiceIsNull_WhenRegisterUser_ThenInvalidNotificationServiceException() {
+        // test that an exception is thrown when trying to register user with a null notification service
+        Mockito.when(user.getNotificationService()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid notification service.");
+    }
+
+    @Test
+    void GivenUserAlreadyExists_WhenRegisterUser_ThenUserExistsException() {
+        // test that an exception is thrown when trying to borrow a book with a user that already exists
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "User already exists.");
+    }
+
+    @Test
+    void GiveValidUser_WhenRegisterUser_ThenUserIsRegistered() {
+        // test that a user is registered successfully
+        library.registerUser(user);
+        // verify that the registering user in db was called
+        Mockito.verify(databaseService).registerUser(user.getId(), user);
+    }
+
 
     @Test
     void GivenInvalidISBN_WhenBorrowBook_ThenInvalidISBNException() {
@@ -203,6 +247,8 @@ public class TestLibrary {
         // check book is not found exception is thrown
         Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
     }
+
+
 
 
 
