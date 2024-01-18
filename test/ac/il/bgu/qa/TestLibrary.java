@@ -26,6 +26,7 @@ public class TestLibrary {
     void setUp() {
         MockitoAnnotations.initMocks(this);
         library = new Library(databaseService, reviewService);
+
     }
 
     @BeforeEach
@@ -90,9 +91,26 @@ public class TestLibrary {
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Book already exists.");
     }
 
+    // tests for registerUser method
+    @Test
+    void GivenUserIsNull_WhenBorrowBook_ThenInvalidUserException() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(null, user.getName()), "Invalid user.") ;
+    }
 
+    void GivenIdIsNull_WhenBorrowBook_ThenInvalidISBNException() { // test that an exception is thrown when trying to borrow a book with a null id
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(null, user.getId()), "Invalid user Id.");
+    }
 
+    void GivenIdIsNot12Digits_WhenBorrowBook_ThenInvalidISBNException() { // test that an exception is thrown when trying to borrow a book with an id that is not 12 digits
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook("123456789", user.getId()), "Invalid user Id.");
+    }
 
+    void GivenNotificationServiceIsNull_WhenBorrowBook_ThenInvalidNotificationServiceException() { // test that an exception is thrown when trying to borrow a book with a null notification service
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(null, user.getNotificationService().toString()), "Invalid notification service.");
+    }
 
-
+    void GivenUserAlreadyExists_WhenBorrowBook_ThenUserExistsException() { // test that an exception is thrown when trying to borrow a book with a user that already exists
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(user.getId(), user.getName()), "User already exists.");
+    }
 }
