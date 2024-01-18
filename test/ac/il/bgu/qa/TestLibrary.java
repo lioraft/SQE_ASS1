@@ -1,5 +1,9 @@
 package ac.il.bgu.qa;
 
+import ac.il.bgu.qa.errors.BookAlreadyBorrowedException;
+import ac.il.bgu.qa.errors.BookNotBorrowedException;
+import ac.il.bgu.qa.errors.BookNotFoundException;
+import ac.il.bgu.qa.errors.UserNotRegisteredException;
 import ac.il.bgu.qa.services.DatabaseService;
 import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
@@ -35,6 +39,10 @@ public class TestLibrary {
         Mockito.when(book.getTitle()).thenReturn("Mocked title");
         Mockito.when(book.getAuthor()).thenReturn("Mocked author");
         Mockito.when(book.isBorrowed()).thenReturn(false);
+
+        // initialize user mock calls for valid user
+        Mockito.when(user.getName()).thenReturn("Mocked name");
+        Mockito.when(user.getId()).thenReturn("123456789123");
     }
 
     @Test
@@ -90,8 +98,111 @@ public class TestLibrary {
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Book already exists.");
     }
 
+    @Test
+    void GivenInvalidISBN_WhenBorrowBook_ThenInvalidISBNException() {
+        // test that an exception is thrown when trying to borrow a book with an invalid ISBN and the message of the exception is correct
+        Mockito.when(book.getISBN()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid ISBN.");
+    }
 
+    @Test
+    void GivenInvalidBook_WhenBorrowBook_ThenBookNotFoundException() {
+        // test that an exception is thrown when trying to borrow a book that does not exist and the message of the exception is correct
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Book not found!");
+    }
 
+    @Test
+    void GivenInvalidUserID_WhenBorrowBook_ThenInvalidUserIDException() {
+        // test that an exception is thrown when trying to borrow a book with an invalid user ID and the message of the exception is correct
+        Mockito.when(user.getId()).thenReturn(null);
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid user Id.");
+    }
+
+    @Test
+    void GivenInvalidUser_WhenBorrowBook_ThenUserNotFoundException() {
+        // test that an exception is thrown when trying to borrow a book to a user that does not exist and the message of the exception is correct
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(null);
+        Assertions.assertThrows(UserNotRegisteredException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "User not found!");
+    }
+
+    @Test
+    void GivenBookIsBorrowed_WhenBorrowBook_ThenBookIsBorrowedException() {
+        // test that an exception is thrown when trying to borrow a book that is already borrowed and the message of the exception is correct
+        Mockito.when(book.isBorrowed()).thenReturn(true);
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        Assertions.assertThrows(BookAlreadyBorrowedException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Book is already borrowed!");
+    }
+
+    @Test
+    void GivenValidBookAndUser_WhenBorrowBook_ThenBookIsBorrowed() {
+        // test that a book is borrowed successfully
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        library.borrowBook(book.getISBN(), user.getId());
+        // verify that the book was borrowed
+        Mockito.verify(book).borrow();
+        // verify that the borrowing book in db was called
+        Mockito.verify(databaseService).borrowBook(book.getISBN(), user.getId());
+    }
+
+    @Test
+    void GivenInvalidISBN_WhenReturnBook_ThenInvalidISBNException() {
+        // test that an exception is thrown when trying to return a book with an invalid ISBN and the message of the exception is correct
+        Mockito.when(book.getISBN()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.returnBook(book.getISBN()), "Invalid ISBN.");
+    }
+
+    @Test
+    void GivenNullBook_WhenReturnBook_ThenBookNotFoundException() {
+        // test that an exception is thrown when trying to return a book that does not exist and the message of the exception is correct
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.returnBook(book.getISBN()), "Book not found!");
+    }
+
+    @Test
+    void GivenUnborrowedBook_WhenReturnBook_ThenBookNotBorrowedException() {
+        // test that an exception is thrown when trying to return a book that is not borrowed and the message of the exception is correct
+        Mockito.when(book.isBorrowed()).thenReturn(false);
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        Assertions.assertThrows(BookNotBorrowedException.class, () -> library.returnBook(book.getISBN()), "Book wasn't borrowed!");
+    }
+
+    @Test
+    void GivenBorrowedBook_WhenReturnBook_ThenBookIsReturned() {
+        // test that a book is returned successfully
+        Mockito.when(book.isBorrowed()).thenReturn(true);
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        library.returnBook(book.getISBN());
+        // verify that the book was returned
+        Mockito.verify(book).returnBook();
+        // verify that the returning book in db was called
+        Mockito.verify(databaseService).returnBook(book.getISBN());
+    }
+
+    @Test
+    void GivenInvalidISBN_WhenNotifyUserWithBookReviews_ThenInvalidISBNException() {
+        // test that an exception is thrown when trying to notify a user with a review with an invalid ISBN and the message of the exception is correct
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(null, user.getId()), "Invalid ISBN.");
+    }
+
+    @Test
+    void GivenInvalidUserID_WhenNotifyUserWithBookReviews_ThenInvalidUserIDException() {
+        // sending null user id to notifyUserWithBookReviews should throw an exception with the correct message of invalid user id
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), null), "Invalid user Id.");
+    }
+
+    @Test
+    void GivenBookNotExist_WhenNotifyUserWithBookReviews_ThenBookNotFoundException() {
+        // when getting the book from the database, return null
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        // check book is not found exception is thrown
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
+    }
 
 
 
