@@ -1,14 +1,13 @@
 package ac.il.bgu.qa;
 
-import ac.il.bgu.qa.errors.BookAlreadyBorrowedException;
-import ac.il.bgu.qa.errors.BookNotBorrowedException;
-import ac.il.bgu.qa.errors.BookNotFoundException;
-import ac.il.bgu.qa.errors.UserNotRegisteredException;
+import ac.il.bgu.qa.errors.*;
 import ac.il.bgu.qa.services.DatabaseService;
 import ac.il.bgu.qa.services.NotificationService;
 import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
+
+import java.util.ArrayList;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -121,11 +120,25 @@ public class TestLibrary {
     }
 
     @Test
+    void GivenUserNameIsNull_WhenRegisterUser_ThenInvalidUserNameException() {
+        // test that an exception is thrown when trying to register user with a null name
+        Mockito.when(user.getName()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user name.");
+    }
+    @Test
+    void GivenUserNameIsEmpty_WhenRegisterUser_ThenInvalidUserNameException() {
+        // test that an exception is thrown when trying to register user with an empty name
+        Mockito.when(user.getName()).thenReturn("");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user name.");
+    }
+
+    @Test
     void GivenNotificationServiceIsNull_WhenRegisterUser_ThenInvalidNotificationServiceException() {
         // test that an exception is thrown when trying to register user with a null notification service
         Mockito.when(user.getNotificationService()).thenReturn(null);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid notification service.");
     }
+
 
     @Test
     void GivenUserAlreadyExists_WhenRegisterUser_ThenUserExistsException() {
@@ -234,12 +247,20 @@ public class TestLibrary {
     void GivenInvalidISBN_WhenNotifyUserWithBookReviews_ThenInvalidISBNException() {
         // test that an exception is thrown when trying to notify a user with a review with an invalid ISBN and the message of the exception is correct
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(null, user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123-123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("letters");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Invalid ISBN.");
     }
 
     @Test
     void GivenInvalidUserID_WhenNotifyUserWithBookReviews_ThenInvalidUserIDException() {
         // sending null user id to notifyUserWithBookReviews should throw an exception with the correct message of invalid user id
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), null), "Invalid user Id.");
+        Mockito.when(user.getId()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Invalid user Id.");
     }
 
     @Test
@@ -249,8 +270,30 @@ public class TestLibrary {
         // check book is not found exception is thrown
         Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
     }
-    // tests to getBookByISBN
 
+    @Test
+    void GivenUserNotExist_WhenNotifyUserWithBookReviews_ThenUserNotFoundException() {
+        // when getting the user from the database, return null
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(null);
+        // check user is not found exception is thrown
+        Assertions.assertThrows(UserNotRegisteredException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "User not found!");
+    }
+
+    @Test
+    void GivenNoReviews_WhenNotifyUserWithBookReviews_ThenNoReviewsException() {
+        // when getting the reviews from the database, return null
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn( null);
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
+        //when getting the reviews from the database, return empty list
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn( new ArrayList<>());
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
+
+        ///////////////is it ok to create a new list like this? I want to check if the output of "getReviewsForBook" is an empty list ?/////////////////////
+
+    }
+
+
+    // tests to getBookByISBN
     @Test
     void GivenInvalidISBN_WhenGetBookByISBN_ThenInvalidISBNException() {
         // Case 1: null ISBN
@@ -286,10 +329,9 @@ public class TestLibrary {
     }
 
     @Test
-    void GivenBookByISBNBAlreadyBorrowed_Whentes_ThenBookAlreadyBorrowedException() {
+    void GivenBookByISBNBAlreadyBorrowed_WhenGetBookByISBN_ThenBookAlreadyBorrowedException() {
         Mockito.when(book.isBorrowed()).thenReturn(true);
         Assertions.assertThrows(BookAlreadyBorrowedException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Book was already borrowed!");
     }
-
 
 }
