@@ -1,14 +1,13 @@
 package ac.il.bgu.qa;
 
-import ac.il.bgu.qa.errors.BookAlreadyBorrowedException;
-import ac.il.bgu.qa.errors.BookNotBorrowedException;
-import ac.il.bgu.qa.errors.BookNotFoundException;
-import ac.il.bgu.qa.errors.UserNotRegisteredException;
+import ac.il.bgu.qa.errors.*;
 import ac.il.bgu.qa.services.DatabaseService;
 import ac.il.bgu.qa.services.NotificationService;
 import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
+
+import java.util.Arrays;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestLibrary {
@@ -246,6 +245,50 @@ public class TestLibrary {
         Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
         // check book is not found exception is thrown
         Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
+        // make sure db function was called
+        Mockito.verify(databaseService).getBookByISBN(book.getISBN());
+    }
+
+    @Test
+    void GivenUserNotExist_WhenNotifyUserWithBookReviews_ThenUserNotFoundException() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when getting the user from the database, return null
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(null);
+        // check user is not found exception is thrown
+        Assertions.assertThrows(UserNotRegisteredException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "User not found!");
+        // make sure db function was called
+        Mockito.verify(databaseService).getUserById(user.getId());
+    }
+
+    @Test
+    void GivenReviewsNull_WhenNotifyUserWithBookReviews_ThenNoReviewsException() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when getting the user from the database, return a valid user
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        // when getting the reviews from the review service, return null
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn(null);
+        // check no reviews exception is thrown
+        Assertions.assertThrows(NoReviewsFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
+        // make sure db function was called
+        Mockito.verify(reviewService).getReviewsForBook(book.getISBN());
+    }
+
+    @Test
+    void GivenNoReviews_WhenNotifyUserWithBookReviews_ThenNoReviewsException() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when getting the user from the database, return a valid user
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        // create empty list
+        String[] reviews = new String[0];
+        // when getting the reviews from the review service, return empty list
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn(Arrays.asList(reviews));
+        // check no reviews exception is thrown
+        Assertions.assertThrows(NoReviewsFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
+        // make sure db function was called
+        Mockito.verify(reviewService).getReviewsForBook(book.getISBN());
     }
 
 
