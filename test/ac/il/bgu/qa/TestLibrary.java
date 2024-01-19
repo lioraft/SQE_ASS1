@@ -161,6 +161,12 @@ public class TestLibrary {
         // test that an exception is thrown when trying to borrow a book with an invalid ISBN and the message of the exception is correct
         Mockito.when(book.getISBN()).thenReturn(null);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123-123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("letters");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid ISBN.");
     }
 
     @Test
@@ -213,6 +219,12 @@ public class TestLibrary {
     void GivenInvalidISBN_WhenReturnBook_ThenInvalidISBNException() {
         // test that an exception is thrown when trying to return a book with an invalid ISBN and the message of the exception is correct
         Mockito.when(book.getISBN()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.returnBook(book.getISBN()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.returnBook(book.getISBN()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("123-123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.returnBook(book.getISBN()), "Invalid ISBN.");
+        Mockito.when(book.getISBN()).thenReturn("letters");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.returnBook(book.getISBN()), "Invalid ISBN.");
     }
 
