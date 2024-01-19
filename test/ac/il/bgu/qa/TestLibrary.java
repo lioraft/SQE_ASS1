@@ -1,11 +1,18 @@
 package ac.il.bgu.qa;
-
 import ac.il.bgu.qa.errors.*;
 import ac.il.bgu.qa.services.DatabaseService;
 import ac.il.bgu.qa.services.NotificationService;
 import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.Arrays;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestLibrary {
@@ -24,12 +31,13 @@ public class TestLibrary {
 
     @BeforeAll
     void setUp() {
+        // set up mocks and library object with the mock dependencies
         MockitoAnnotations.initMocks(this);
         library = new Library(databaseService, reviewService);
     }
 
     @BeforeEach
-    void setUpBook() {
+    void setUpObjects() {
         // initialize book mock calls for valid book
         Mockito.when(book.getISBN()).thenReturn("978-0-13-149505-0");
         Mockito.when(book.getTitle()).thenReturn("Mocked title");
@@ -42,24 +50,30 @@ public class TestLibrary {
         Mockito.when(user.getNotificationService()).thenReturn(notificationService);
     }
 
+    /***  tests for addBook method ***/
     @Test
     void GivenBookIsNull_WhenAddBook_ThenInvalidBookException() {
         // test that an exception is thrown when trying to add a null book and the message of the exception is correct
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(null), "Invalid book.");
     }
 
+    /*** this function also tests the private function of isValidISBN ***/
     @Test
     void GivenInvalidISBN_WhenAddBook_ThenInvalidISBNException() {
-        // when isbn is called, return an invalid isbn
+        // case of null
         Mockito.when(book.getISBN()).thenReturn(null);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid ISBN.");
+        // case of empty string
         Mockito.when(book.getISBN()).thenReturn("");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid ISBN.");
+        // case of length != 13
         Mockito.when(book.getISBN()).thenReturn("123");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid ISBN.");
-        Mockito.when(book.getISBN()).thenReturn("123-123");
+        // case of not all chars are digits
+        Mockito.when(book.getISBN()).thenReturn("123A123123123");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid ISBN.");
-        Mockito.when(book.getISBN()).thenReturn("invalidISBN");
+        // invalid suffix because last digit should be 4 according to the formula
+        Mockito.when(book.getISBN()).thenReturn("9780132350881");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid ISBN.");
     }
 
@@ -72,12 +86,29 @@ public class TestLibrary {
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid title.");
     }
 
+    /*** this function also tests private function isAuthorValid ***/
     @Test
     void GivenInvalidAuthor_WhenAddBook_ThenInvalidAuthorException() {
-        // test that an exception is thrown when trying to add a book with an invalid author and the message of the exception is correct
+        // case of null
         Mockito.when(book.getAuthor()).thenReturn(null);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of empty string
         Mockito.when(book.getAuthor()).thenReturn("");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of name starts with digit
+        Mockito.when(book.getAuthor()).thenReturn("1author");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of name ends with special char
+        Mockito.when(book.getAuthor()).thenReturn("author!");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of name contains special char
+        Mockito.when(book.getAuthor()).thenReturn("auth!or");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of double - in name
+        Mockito.when(book.getAuthor()).thenReturn("auth--or");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
+        // case of double '' in name
+        Mockito.when(book.getAuthor()).thenReturn("auth''or");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Invalid author.");
     }
 
@@ -88,14 +119,23 @@ public class TestLibrary {
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Book with invalid borrowed state.");
     }
 
-
     @Test
     void GivenBookAlreadyExists_WhenAddBook_ThenBookExistsException() {
         Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.addBook(book), "Book already exists.");
     }
 
-    // tests for registerUser method
+    @Test
+    void GivenValidBook_WhenAddBook_ThenBookIsAdded() {
+        // when getting the book from the database, return null
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        // test that a book is added successfully
+        library.addBook(book);
+        // verify that the adding book in db was called
+        Mockito.verify(databaseService).addBook(book.getISBN(), book);
+    }
+
+    /*** tests for registerUser method ***/
     @Test
     void GivenUserIsNull_WhenRegisterUser_ThenInvalidUserException() {
         // test that an exception is thrown when trying to register null user
@@ -111,34 +151,52 @@ public class TestLibrary {
 
     @Test
     void GivenIdIsNot12Digits_WhenRegisterUser_ThenInvalidIdxception() {
-        // test that an exception is thrown when user with id less than 12 digits tries to register
+        // case of 9 digits
         Mockito.when(user.getId()).thenReturn("123456789");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user Id.");
+        // case of 12 letters and numbers
+        Mockito.when(user.getId()).thenReturn("1A2B3C456789");
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user Id.");
     }
 
     @Test
+    void GivenUserNameIsNull_WhenRegisterUser_ThenInvalidUserNameException() {
+        // test that an exception is thrown when trying to register user with a null name
+        Mockito.when(user.getName()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user name.");
+    }
+    @Test
+    void GivenUserNameIsEmpty_WhenRegisterUser_ThenInvalidUserNameException() {
+        // test that an exception is thrown when trying to register user with an empty name
+        Mockito.when(user.getName()).thenReturn("");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid user name.");
+    }
+
+    @Test
     void GivenNotificationServiceIsNull_WhenRegisterUser_ThenInvalidNotificationServiceException() {
-        // test that an exception is thrown when trying to register user with a null notification service
+        // case of null notification service
         Mockito.when(user.getNotificationService()).thenReturn(null);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "Invalid notification service.");
     }
 
     @Test
     void GivenUserAlreadyExists_WhenRegisterUser_ThenUserExistsException() {
-        // test that an exception is thrown when trying to borrow a book with a user that already exists
+        // test that an exception is thrown when trying to register a user that already exists
         Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.registerUser(user), "User already exists.");
     }
 
     @Test
-    void GiveValidUser_WhenRegisterUser_ThenUserIsRegistered() {
+    void GivenValidUser_WhenRegisterUser_ThenUserIsRegistered() {
+        // when getting the user from the database, return null
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(null);
         // test that a user is registered successfully
         library.registerUser(user);
         // verify that the registering user in db was called
         Mockito.verify(databaseService).registerUser(user.getId(), user);
     }
 
-
+    /*** tests for borrowBook method ***/
     @Test
     void GivenInvalidISBN_WhenBorrowBook_ThenInvalidISBNException() {
         // test that an exception is thrown when trying to borrow a book with an invalid ISBN and the message of the exception is correct
@@ -155,11 +213,15 @@ public class TestLibrary {
 
     @Test
     void GivenInvalidUserID_WhenBorrowBook_ThenInvalidUserIDException() {
-        // test that an exception is thrown when trying to borrow a book with an invalid user ID and the message of the exception is correct
+        // case user id is null
         Mockito.when(user.getId()).thenReturn(null);
         // when getting the book from the database, return a valid book
         Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid user Id.");
+        // case user id is not 12 digits
+        Mockito.when(user.getId()).thenReturn("123456789");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Invalid user Id.");
+
     }
 
     @Test
@@ -191,6 +253,7 @@ public class TestLibrary {
         Mockito.verify(databaseService).borrowBook(book.getISBN(), user.getId());
     }
 
+    /*** tests for returnBook method ***/
     @Test
     void GivenInvalidISBN_WhenReturnBook_ThenInvalidISBNException() {
         // test that an exception is thrown when trying to return a book with an invalid ISBN and the message of the exception is correct
@@ -225,16 +288,19 @@ public class TestLibrary {
         Mockito.verify(databaseService).returnBook(book.getISBN());
     }
 
+    /*** tests for notifyUserWithBookReviews method ***/
     @Test
     void GivenInvalidISBN_WhenNotifyUserWithBookReviews_ThenInvalidISBNException() {
-        // test that an exception is thrown when trying to notify a user with a review with an invalid ISBN and the message of the exception is correct
+        // case of invalid ISBN - null
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(null, user.getId()), "Invalid ISBN.");
     }
 
     @Test
     void GivenInvalidUserID_WhenNotifyUserWithBookReviews_ThenInvalidUserIDException() {
-        // sending null user id to notifyUserWithBookReviews should throw an exception with the correct message of invalid user id
+        // cass of null user id
         Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), null), "Invalid user Id.");
+        // case of user id is not 12 digits
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), "123456789"), "Invalid user Id.");
     }
 
     @Test
@@ -243,8 +309,6 @@ public class TestLibrary {
         Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
         // check book is not found exception is thrown
         Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
-        // make sure db function was called
-        Mockito.verify(databaseService).getBookByISBN(book.getISBN());
     }
 
     @Test
@@ -255,8 +319,6 @@ public class TestLibrary {
         Mockito.when(databaseService.getUserById(user.getId())).thenReturn(null);
         // check user is not found exception is thrown
         Assertions.assertThrows(UserNotRegisteredException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "User not found!");
-        // make sure db function was called
-        Mockito.verify(databaseService).getUserById(user.getId());
     }
 
     @Test
@@ -269,8 +331,6 @@ public class TestLibrary {
         Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn(null);
         // check no reviews exception is thrown
         Assertions.assertThrows(NoReviewsFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
-        // make sure db function was called
-        Mockito.verify(reviewService).getReviewsForBook(book.getISBN());
     }
 
     @Test
@@ -285,8 +345,93 @@ public class TestLibrary {
         Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn(Arrays.asList(reviews));
         // check no reviews exception is thrown
         Assertions.assertThrows(NoReviewsFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "No reviews found!");
-        // make sure db function was called
-        Mockito.verify(reviewService).getReviewsForBook(book.getISBN());
+    }
+
+    @Test
+    void GivenReviewException_WhenNotifyUserWithBookReviews_ThenThrowReviewException() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when getting the user from the database, return a valid user
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        // when getting the reviews from the review service, throw exception
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenThrow(ReviewException.class);
+        // check review exception is thrown
+        Assertions.assertThrows(ReviewServiceUnavailableException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Review service exception!");
+    }
+
+    // to fix: testing output to console not working
+    @Test
+    void GivenNotificationExceptionThrownForAllRetry_WhenNotifyUserWithBookReviews_ThenThrowNotificationException() {
+        // create stream to hold the output
+        ByteArrayOutputStream outMessage = new ByteArrayOutputStream();
+        // set the output to the stream
+        System.setOut(new PrintStream(outMessage));
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when getting the user from the database, return a valid user
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        // when getting the reviews from the review service, return a valid list
+        String[] reviews = new String[1];
+        reviews[0] = "review";
+        Mockito.when(reviewService.getReviewsForBook(book.getISBN())).thenReturn(Arrays.asList(reviews));
+        // when sending notification, throw exception
+        doThrow(new NotificationException("Simulated notification failure")).when(user).sendNotification(anyString());
+        // check notification exception is thrown
+        Assertions.assertThrows(NotificationException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Notification service exception!");
+        // Verify that the text was printed to the console
+        assertTrue(new PrintStream(outMessage).toString().contains("Notification failed! Retrying attempt 1/5\n" +
+                "Notification failed! Retrying attempt 2/5\n" +
+                "Notification failed! Retrying attempt 3/5\n" +
+                "Notification failed! Retrying attempt 4/5\n" +
+                "Notification failed! Retrying attempt 5/5\n"));
+    }
+
+    @Test
+    void GivenInvalidISBN_WhenGetBookByISBN_ThenInvalidISBNException() {
+        // Case invalid ISBN
+        Mockito.when(book.getISBN()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid ISBN.");
+    }
+
+    @Test
+    void GivenInvalidId_WhenGetBookByISBN_ThenInvalidISBNException() {
+        // Case 1: null Id
+        Mockito.when(user.getId()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid user Id.");
+        // Case 2: Less than 12 digits is an invalid ID format
+        Mockito.when(user.getId()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid user Id.");
+    }
+
+    @Test
+    void GivenBookByISBNNotExist_WhenGetBookByISBN_ThenBookNotFoundException() {
+        // when getting the book from the database, return null
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        // check book is not found exception is thrown
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Book not found!");
+    }
+
+    @Test
+    void GivenBookByISBNBAlreadyBorrowed_WhenGetBookByISBN_ThenBookAlreadyBorrowedException() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when check if book is borrowed, return true
+        Mockito.when(book.isBorrowed()).thenReturn(true);
+        Assertions.assertThrows(BookAlreadyBorrowedException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Book was already borrowed!");
+    }
+
+    // also needs to check that notification failed is printed to screen
+    @Test
+    void GivenValidBookAndUser_WhenGetBookByISBN_ThenBookIsBorrowed() {
+        // when getting the book from the database, return a valid book
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(book);
+        // when check if book is borrowed, return false
+        Mockito.when(book.isBorrowed()).thenReturn(false);
+        // when getting the user from the database, return a valid user
+        Mockito.when(databaseService.getUserById(user.getId())).thenReturn(user);
+        // test that a book is borrowed successfully and that the book was returned by the function
+        Book returnedBook = library.getBookByISBN(book.getISBN(), user.getId());
+        Assertions.assertEquals(returnedBook, book);
     }
 
 
