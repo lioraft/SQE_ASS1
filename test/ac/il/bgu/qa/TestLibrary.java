@@ -10,6 +10,7 @@ import ac.il.bgu.qa.services.ReviewService;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
 
+
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestLibrary {
     // Creating mock objects for the dependencies of the library class
@@ -182,6 +183,7 @@ public class TestLibrary {
         Assertions.assertThrows(BookAlreadyBorrowedException.class, () -> library.borrowBook(book.getISBN(), user.getId()), "Book is already borrowed!");
     }
 
+
     @Test
     void GivenValidBookAndUser_WhenBorrowBook_ThenBookIsBorrowed() {
         // test that a book is borrowed successfully
@@ -247,9 +249,47 @@ public class TestLibrary {
         // check book is not found exception is thrown
         Assertions.assertThrows(BookNotFoundException.class, () -> library.notifyUserWithBookReviews(book.getISBN(), user.getId()), "Book not found!");
     }
+    // tests to getBookByISBN
 
+    @Test
+    void GivenInvalidISBN_WhenGetBookByISBN_ThenInvalidISBNException() {
+        // Case 1: null ISBN
+        Mockito.when(book.getISBN()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid ISBN.");
+        // Case 2: Less than 10 digits is an invalid ISBN format
+        Mockito.when(book.getISBN()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid ISBN.");
+        // Case 3: Not allowing hyphen in ISBN
+        Mockito.when(book.getISBN()).thenReturn("123-123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid ISBN.");
+        // Case 4: Not allowing letters in ISBN
+        Mockito.when(book.getISBN()).thenReturn("letters");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid ISBN.");
+    }
 
+    @Test
+    void GivenInvalidId_WhenGetBookByISBN_ThenInvalidISBNException() {
+        // Case 1: null Id
+        Mockito.when(user.getId()).thenReturn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid user Id.");
+        // Case 2: Less than 10 digits is an invalid Id format
+        Mockito.when(user.getId()).thenReturn("123");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Invalid user Id.");
+    }
 
+    @Test
+    void GivenBookByISBNNotExist_WhenGetBookByISBN_ThenBookNotFoundException() {
+        // when getting the book from the database, return null
+        Mockito.when(databaseService.getBookByISBN(book.getISBN())).thenReturn(null);
+        // check book is not found exception is thrown
+        Assertions.assertThrows(BookNotFoundException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Book not found!");
+    }
+
+    @Test
+    void GivenBookByISBNBAlreadyBorrowed_Whentes_ThenBookAlreadyBorrowedException() {
+        Mockito.when(book.isBorrowed()).thenReturn(true);
+        Assertions.assertThrows(BookAlreadyBorrowedException.class, () -> library.getBookByISBN(book.getISBN(), user.getId()), "Book was already borrowed!");
+    }
 
 
 }
